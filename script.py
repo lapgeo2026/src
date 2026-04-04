@@ -11,56 +11,61 @@ import csv
 from pathlib import Path
 
 
-def convertPdfToCsv(input):
-    # Use a breakpoint in the code line below to debug your script.
-    assert isinstance(input, object)
-    file: str = str(input)
-    
+def convertPdfToCsv(localdir, filePattern):
     # Path to your PDF file
-    pdf_path = input
-    output_path = input.replace(".pdf",".csv")
-
-    try:
-      
-      # Save all tables to CSV
-      tabula.convert_into(pdf_path, output_path, output_format="csv", pages="all")
-
-      print("Rendering process completed")
-      print(f'File generated: {input}.csv')  # Press Ctrl+F8 to toggle the breakpoint.
-
-    except FileNotFoundError:
-      print("Error: PDF file not found.")
-      
-    #with open(output_path, 'r', encoding='utf-8', errors='ignore') as file:
-    #  lines = file.readlines()
-        
-    #  regex = re.compile(pattern)
-    #  matches = []
+    pdf_path = localdir
+    i = 0
+    csv = pd.DataFrame()
+    result_csv = pd.DataFrame()
+    print(localdir)
+    print(filePattern)
     
-    #  for line_number, line in enumerate(lines):
-    #    if re.search(regex, line):
-    #        matches.append((line_number + 1, line.strip()))
+    for i, filename in enumerate(localdir.rglob("*" +filePattern +"*.pdf"), start=1):
+        output_path = str(filename).replace(".pdf","")
+        print(filename)
+        try:
+      
+          # Save all tables to CSV
+          tabula.convert_into(filename, output_path, output_format="csv", pages="all")
+          csv = pd.read_csv(f"{output_path}", sep=',', on_bad_lines='skip')
+      
+          if i == 1:
+              result_csv = csv
+          else:
+              result_csv = pd.concat([result_csv, csv])
+      
+          print("Rendering process completed")
+          print(f'File generated: {output_path}.csv')
 
-    #  if matches:
-    #    print(f"Found string {pattern} matches in {output_path}:")
-        
-    #    for line_number, line in matches:
-    #      print(f"- Line {line_number}: {line.strip()}")
-    #  else:
-    #      print(f"No matches found in {pdf_path} for the given string {pattern}.")
-
-    de=pd.DataFrame(columns=["Date", "DateValeur", "Description", "Debit", "Credit"])
-    df=pd.read_csv(f"{output_path}", sep=',', on_bad_lines='skip', quoting=csv.QUOTE_NONE)
-    de=df.drop(labels=["Débit"], axis=1)
-    print(df)
+        except FileNotFoundError:
+          print("Error: PDF file not found.")
+      
+    print("********* RELEVE *********")
+    print(result_csv)
+    
+    csv_filtered_Credit = pd.DataFrame()
+    csv_filtered_Debit = pd.DataFrame()
+    csv_filtered_Credit = result_csv.copy()
+    csv_filtered_Debit = result_csv.copy()
+    print(result_csv.columns)
+    pattern = r"[+-]?(?:\d*\/\d+|\d+\.\d*|\d+)" #any float
+    csv_filtered_Credit = csv_filtered_Credit[csv_filtered_Credit['Crédit'].notna() & csv_filtered_Credit['Crédit'].str.contains(pattern, regex=True)]
+    csv_filtered_Debit = csv_filtered_Debit[csv_filtered_Debit['Unnamed: 4'].notna() & csv_filtered_Debit['Unnamed: 4'].str.contains(pattern, regex=True)]
+    print("********* CREDIT *********")
+    print(csv_filtered_Credit[['Date Date de Valeur', 'Crédit']])
+    print("********* DEBIT *********")
+    csv_filtered_Debit = csv_filtered_Debit.rename(columns={'Unnamed: 4': 'Débit'})
+    print(csv_filtered_Debit[['Date Date de Valeur', 'Débit']])
+    
+    csv_filtered_Credit.to_csv("credit.csv", index=False)
+    csv_filtered_Debit.to_csv("debit.csv", index=False)
+    
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     jpype.startJVM()
     
     filePattern = input("pattern to search for filename: ")
-    #pattern = input("pattern to search in files: ")
     localpath = "C:/Users/Georges/lang/python/"
     localdir=Path(localpath)
-    for filename in localdir.rglob("*" +filePattern +"*.pdf"):
-      convertPdfToCsv(str(filename))
+    convertPdfToCsv(localdir, filePattern)
