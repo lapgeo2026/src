@@ -1,7 +1,4 @@
-# This is a sample Python script.
-
-# Press Maj+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+# python code for your bank account
 import tabula
 import pandas as pd
 from jpype import *
@@ -20,45 +17,64 @@ def convertPdfToCsv(localdir, filePattern):
     print(localdir)
     print(filePattern)
     
-    for i, filename in enumerate(localdir.rglob("*" +filePattern +"*.pdf"), start=1):
-        output_path = str(filename).replace(".pdf","")
-        print(filename)
-        try:
-      
-          # Save all tables to CSV
-          tabula.convert_into(filename, output_path, output_format="csv", pages="all")
-          csv = pd.read_csv(f"{output_path}", sep=',', on_bad_lines='skip')
-      
-          if i == 1:
-              result_csv = csv
-          else:
-              result_csv = pd.concat([result_csv, csv])
-      
-          print("Rendering process completed")
-          print(f'File generated: {output_path}.csv')
-
-        except FileNotFoundError:
-          print("Error: PDF file not found.")
-      
-    print("********* RELEVE *********")
-    print(result_csv)
+    lst_files_pdf = list(enumerate(localdir.rglob("*" +filePattern +"*.pdf")))
+    lst_files_csv = list(enumerate(localdir.rglob("*" +filePattern +"*.csv"), start=len(lst_files_pdf)))
     
+    files = lst_files_pdf + lst_files_csv
+    for i, filename in files:
+        print(filename)
+        if "pdf" in str(filename):
+            output_path = str(filename).replace(".pdf","")
+            print(filename) 
+            try:
+                # Save all tables to CSV
+                tabula.convert_into(filename, output_path, output_format="csv", pages="all")
+
+            except FileNotFoundError:
+                print("Error: PDF file not found.")
+        else:
+            output_path = str(filename)
+
+        if "pdf" in str(filename):
+            csv = pd.read_csv(f"{output_path}", sep=',', on_bad_lines='skip')
+        else:
+            csv = pd.read_csv(f"{output_path}", sep=';', on_bad_lines='skip')
+      
+        if i == 1:
+            result_csv = csv
+        else:
+            result_csv = pd.concat([result_csv, csv])
+      
+        print("Rendering process completed")
+        if not "csv" in str(filename):
+            print(f'File generated: {output_path}.csv')  
+    
+    print("********* RELEVE *********")
+    if not result_csv.empty:
+        print(result_csv)
+
     csv_filtered_Credit = pd.DataFrame()
     csv_filtered_Debit = pd.DataFrame()
+    result_csv.columns = result_csv.columns.str.replace("é", "e")
     csv_filtered_Credit = result_csv.copy()
     csv_filtered_Debit = result_csv.copy()
     print(result_csv.columns)
     pattern = r"[+-]?(?:\d*\/\d+|\d+\.\d*|\d+)" #any float
-    csv_filtered_Credit = csv_filtered_Credit[csv_filtered_Credit['Crédit'].notna() & csv_filtered_Credit['Crédit'].str.contains(pattern, regex=True)]
-    csv_filtered_Debit = csv_filtered_Debit[csv_filtered_Debit['Unnamed: 4'].notna() & csv_filtered_Debit['Unnamed: 4'].str.contains(pattern, regex=True)]
-    print("********* CREDIT *********")
-    print(csv_filtered_Credit[['Date Date de Valeur', 'Crédit']])
-    print("********* DEBIT *********")
-    csv_filtered_Debit = csv_filtered_Debit.rename(columns={'Unnamed: 4': 'Débit'})
-    print(csv_filtered_Debit[['Date Date de Valeur', 'Débit']])
+    for column_name in result_csv.columns:
+        if "Credit" in column_name:
+          csv_filtered_Credit = csv_filtered_Credit[csv_filtered_Credit[column_name].notna() & csv_filtered_Credit[column_name].str.contains(pattern, regex=True)]
+          csv_filtered_Credit = csv_filtered_Credit.rename(columns={column_name: "Credit"})
+        elif ("Debit" in column_name) or ("Unnamed" in column_name):
+          csv_filtered_Debit = csv_filtered_Debit[csv_filtered_Debit[column_name].notna() & csv_filtered_Debit[column_name].str.contains(pattern, regex=True)]   
+          csv_filtered_Debit = csv_filtered_Debit.rename(columns={column_name: "Debit"})
     
-    csv_filtered_Credit.to_csv("credit.csv", index=False)
-    csv_filtered_Debit.to_csv("debit.csv", index=False)
+    csv_filtered_Credit = csv_filtered_Credit.loc[:, csv_filtered_Credit.columns.str.contains("Date|Libelle|Credit")]
+    csv_filtered_Debit = csv_filtered_Debit.loc[:, csv_filtered_Debit.columns.str.contains("Date|Libelle|Debit")]
+            
+    print("********* CREDIT: credit_rlv.csv *********")
+    csv_filtered_Credit.to_csv("credit_rlv.csv", index=False)
+    print("********* DEBIT: debit_rlv.csv *********")
+    csv_filtered_Debit.to_csv("debit_rlv.csv", index=False)
     
 
 # Press the green button in the gutter to run the script.
